@@ -1,32 +1,75 @@
-# This file is copied to ~/spec when you run 'ruby script/generate rspec'
-# from the project root directory.
-ENV["RAILS_ENV"] ||= 'test'
-require File.expand_path("../test_app/config/environment", __FILE__)
-require 'rspec/rails'
+require 'rubygems'
+require 'spork'
 
-# Requires supporting files with custom matchers and macros, etc,
-# in ./support/ and its subdirectories.
-Dir["#{File.dirname(__FILE__)}/support/**/*.rb"].each {|f| require f}
+#uncomment the following line to use spork with the debugger
+#require 'spork/ext/ruby-debug'
 
-require 'spree_core/testing_support/factories'
+Spork.prefork do
+  # Configure Rails Environment
+  ENV['RAILS_ENV'] = 'test'
+  require File.expand_path('../dummy/config/environment.rb',  __FILE__)
+  require 'rspec/rails'
 
-RSpec.configure do |config|
-  # == Mock Framework
-  #
-  # If you prefer to use mocha, flexmock or RR, uncomment the appropriate line:
-  #
-  # config.mock_with :mocha
-  # config.mock_with :flexmock
-  # config.mock_with :rr
-  config.mock_with :rspec
+  # gems
+  require 'ffaker'
+  require 'capybara/rspec'
+  require 'capybara/webkit'
+  require 'database_cleaner'
 
-  config.fixture_path = "#{::Rails.root}/spec/fixtures"
+  # Requires for spree_core
+  require 'spree/core/url_helpers'
+  require 'spree/core/testing_support/fixtures'
+  require 'spree/core/testing_support/factories'
+  require 'spree/core/testing_support/env'
+  require 'spree/core/testing_support/controller_requests'
 
-  #config.include Devise::TestHelpers, :type => :controller
-  # If you're not using ActiveRecord, or you'd prefer not to run each of your
-  # examples within a transaction, comment the following line or assign false
-  # instead of true.
-  config.use_transactional_fixtures = true
+  RSpec.configure do |config|
+    # == Mock Framework
+    #
+    # If you prefer to use mocha, flexmock or RR, uncomment the appropriate line:
+    #
+    # config.mock_with :mocha
+    # config.mock_with :flexmock
+    # config.mock_with :rr
+    config.mock_with :rspec
+
+    # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
+    config.fixture_path = "#{::Rails.root}/spec/fixtures"
+
+    # If you're not using ActiveRecord, or you'd prefer not to run each of your
+    # examples within a transaction, remove the following line or assign false
+    # instead of true.
+    config.use_transactional_fixtures = false
+    config.before(:suite) do
+      DatabaseCleaner.strategy = :truncation, { :only => %w[spree_users spree_addresses] }
+    end
+
+    config.before(:each) do
+      DatabaseCleaner.start
+    end
+
+    config.after(:each) do
+      DatabaseCleaner.clean
+    end
+
+    config.after(:suite) do
+      DatabaseCleaner.clean_with(:truncation)
+    end
+
+    # DRasband - added to avoid the "undefined method `authenticate' for
+    # nil:NilClass" error
+    config.include Devise::TestHelpers, :type => :controller
+    config.include Spree::Core::UrlHelpers
+    config.include Spree::Core::TestingSupport::ControllerRequests, :type => :controller
+    config.include Warden::Test::Helpers
+  end
 end
 
-@configuration ||= AppConfiguration.find_or_create_by_name("Default configuration")
+Spork.each_run do
+  # This code will be run each time you run your specs.
+
+  # Requires supporting ruby files with custom matchers and macros, etc,
+  # in spec/support/ and its subdirectories.
+  Dir[File.join(File.dirname(__FILE__), 'support/**/*.rb')].each { |f| require f }
+
+end
